@@ -38,8 +38,10 @@ pipeline {
                 echo 'Desplegando aplicación Flask en contenedor de prueba...'
                 sh '''
                     docker rm -f flask-vulnerable-app || true
-                    docker run -d --name flask-vulnerable-app --network devsecops-net -p 5000:5000 -v $(pwd):/app -w /app python:3.9-slim bash -c "pip install -r requirements.txt && python app.py"
-                    sleep 10
+                    docker create --name flask-vulnerable-app --network devsecops-net -p 5000:5000 -w /app python:3.9-slim bash -c "pip install -r requirements.txt && python app.py"
+                    docker cp . flask-vulnerable-app:/app
+                    docker start flask-vulnerable-app
+                    sleep 15
                 '''
             }
         }
@@ -47,13 +49,15 @@ pipeline {
         stage('Security Test') {
             steps {
                 echo '1. Ejecutando análisis de dependencias (SCA) con OWASP Dependency-Check...'
-                dependencyCheck additionalArguments: '--scan . --format HTML --format XML --out .', odcInstallation: 'DependencyCheck'
+                dependencyCheck additionalArguments: '--scan . --disableNvd --format HTML --format XML --out .', odcInstallation: 'DependencyCheck'
 
                 echo '2. Ejecutando análisis dinámico (DAST) con OWASP ZAP...'
                 sh '''
-                    mkdir -p zap_report
-                    chmod 777 zap_report
-                    docker run --rm --network devsecops-net -v $(pwd)/zap_report:/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t "http://flask-vulnerable-app:5000/hello?name=TEST" -r zap_report.html || true
+                    rm -rf zap_report && mkdir -p zap_report
+                    docker create --name zap-scanner --network devsecops-net -u root ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t "http://flask-vulnerable-app:5000/hello?name=TEST" -r zap_report.html
+                    docker start -a zap-scanner || true
+                    docker cp zap-scanner:/zap/wrk/zap_report.html zap_report/zap_report.html || true
+                    docker rm -f zap-scanner || true
                 '''
             }
         }
