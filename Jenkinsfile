@@ -53,15 +53,21 @@ pipeline {
                     docker exec flask-vulnerable-app pip install pip-audit
                     docker exec flask-vulnerable-app pip-audit -r requirements.txt -f json -o /app/sca_results.json || true
                     docker cp flask-vulnerable-app:/app/sca_results.json sca_results.json
-                    python3 -c "
+                    cat << 'EOF' > make_report.py
 import json, html
-data = json.load(open('sca_results.json'))
-rows = ''
-for dep in data.get('dependencies', []):
-    for v in dep.get('vulns', []):
-        rows += f'<tr><td>{dep[\"name\"]}</td><td>{dep[\"version\"]}</td><td><b>{v[\"id\"]}</b></td><td>{\", \".join(v.get(\"aliases\", []))}</td><td>{html.escape(v.get(\"description\", \"\"))}</td></tr>'
-open('dependency-check-report.html', 'w').write(f'''<html><head><meta charset=\"utf-8\"><title>OWASP Dependency-Check / SCA Report</title><style>body{{font-family:Arial;margin:20px}}table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #ccc;padding:8px;text-align:left}}th{{background:#1b365d;color:#fff}}</style></head><body><h1>Reporte de Análisis de Dependencias (SCA) - devsecops-flask-app</h1><table><tr><th>Paquete</th><th>Versión</th><th>ID Vulnerabilidad</th><th>CVE / Alias</th><th>Descripción</th></tr>{rows}</table></body></html>''')
-"
+
+data = json.load(open("sca_results.json"))
+rows = ""
+for dep in data.get("dependencies", []):
+    for v in dep.get("vulns", []):
+        aliases = ", ".join(v.get("aliases", []))
+        desc = html.escape(v.get("description", ""))
+        rows += f"<tr><td>{dep['name']}</td><td>{dep['version']}</td><td><b>{v['id']}</b></td><td>{aliases}</td><td>{desc}</td></tr>"
+
+report = f"<html><head><meta charset='utf-8'><title>OWASP Dependency-Check / SCA Report</title><style>body{{font-family:Arial;margin:20px}}table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #ccc;padding:8px;text-align:left}}th{{background:#1b365d;color:#fff}}</style></head><body><h1>Reporte de Análisis de Dependencias (SCA) - devsecops-flask-app</h1><table><tr><th>Paquete</th><th>Versión</th><th>ID Vulnerabilidad</th><th>CVE / Alias</th><th>Descripción</th></tr>{rows}</table></body></html>"
+open("dependency-check-report.html", "w").write(report)
+EOF
+                    python3 make_report.py
                 '''
 
                 echo '2. Ejecutando análisis dinámico (DAST) con OWASP ZAP...'
