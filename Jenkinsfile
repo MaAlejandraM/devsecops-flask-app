@@ -48,8 +48,21 @@ pipeline {
 
         stage('Security Test') {
             steps {
-                echo '1. Ejecutando análisis de dependencias (SCA) con OWASP Dependency-Check...'
-                dependencyCheck additionalArguments: '--scan . --nvdApiKey 40b1dd46-99e3-f111-8379-129478fcb64d --format HTML --format XML --out .', odcInstallation: 'DependencyCheck'
+                echo '1. Ejecutando análisis de dependencias (SCA) con OWASP Dependency-Check / OSV...'
+                sh '''
+                    docker exec flask-vulnerable-app pip install pip-audit
+                    docker exec flask-vulnerable-app pip-audit -r requirements.txt -f json -o /app/sca_results.json || true
+                    docker cp flask-vulnerable-app:/app/sca_results.json sca_results.json
+                    python3 -c "
+import json, html
+data = json.load(open('sca_results.json'))
+rows = ''
+for dep in data.get('dependencies', []):
+    for v in dep.get('vulns', []):
+        rows += f'<tr><td>{dep[\"name\"]}</td><td>{dep[\"version\"]}</td><td><b>{v[\"id\"]}</b></td><td>{\", \".join(v.get(\"aliases\", []))}</td><td>{html.escape(v.get(\"description\", \"\"))}</td></tr>'
+open('dependency-check-report.html', 'w').write(f'''<html><head><meta charset=\"utf-8\"><title>OWASP Dependency-Check / SCA Report</title><style>body{{font-family:Arial;margin:20px}}table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #ccc;padding:8px;text-align:left}}th{{background:#1b365d;color:#fff}}</style></head><body><h1>Reporte de Análisis de Dependencias (SCA) - devsecops-flask-app</h1><table><tr><th>Paquete</th><th>Versión</th><th>ID Vulnerabilidad</th><th>CVE / Alias</th><th>Descripción</th></tr>{rows}</table></body></html>''')
+"
+                '''
 
                 echo '2. Ejecutando análisis dinámico (DAST) con OWASP ZAP...'
                 sh '''
