@@ -49,7 +49,7 @@ pipeline {
         stage('Security Test') {
             steps {
                 echo '1. Ejecutando análisis de dependencias (SCA) con OWASP Dependency-Check...'
-                dependencyCheck additionalArguments: '--scan . --nvdApiKey 40B1DD46-99E3-F111-8379-129478FCB64D --format HTML --format XML --out .', odcInstallation: 'DependencyCheck'
+                dependencyCheck additionalArguments: '--scan . --nvdApiKey 40b1dd46-99e3-f111-8379-129478fcb64d --format HTML --format XML --out .', odcInstallation: 'DependencyCheck'
 
                 echo '2. Ejecutando análisis dinámico (DAST) con OWASP ZAP...'
                 sh '''
