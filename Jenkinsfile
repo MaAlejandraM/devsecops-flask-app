@@ -49,15 +49,16 @@ pipeline {
         stage('Security Test') {
             steps {
                 echo '1. Ejecutando análisis de dependencias (SCA) con OWASP Dependency-Check...'
-                dependencyCheck additionalArguments: '--scan . --disableNvd --format HTML --format XML --out .', odcInstallation: 'DependencyCheck'
+                dependencyCheck additionalArguments: '--scan . --noupdate --format HTML --format XML --out .', odcInstallation: 'DependencyCheck'
 
                 echo '2. Ejecutando análisis dinámico (DAST) con OWASP ZAP...'
                 sh '''
                     rm -rf zap_report && mkdir -p zap_report
-                    docker create --name zap-scanner --network devsecops-net -u root ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t "http://flask-vulnerable-app:5000/hello?name=TEST" -r zap_report.html
-                    docker start -a zap-scanner || true
-                    docker cp zap-scanner:/zap/wrk/zap_report.html zap_report/zap_report.html || true
+                    docker volume rm -f zap_wrk || true
+                    docker run --name zap-scanner --network devsecops-net -u root -v zap_wrk:/zap/wrk ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t "http://flask-vulnerable-app:5000/hello?name=TEST" -r zap_report.html || true
+                    docker cp zap-scanner:/zap/wrk/zap_report.html zap_report/zap_report.html
                     docker rm -f zap-scanner || true
+                    docker volume rm -f zap_wrk || true
                 '''
             }
         }
